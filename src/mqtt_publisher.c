@@ -16,8 +16,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI("MQTT", "Conectado ao broker");
-​            break;
-
+            break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGW("MQTT", "Desconectado");
             break;
@@ -37,17 +36,12 @@ void mqtt_publisher_task(void *pvParameters)
         .broker.address.port = MQTT_PORT,
         .credentials.username = MQTT_USER,
         .credentials.authentication.password = MQTT_PASS,
-        // Requisito para HiveMQ Cloud (TLS)
         .broker.verification.skip_cert_common_name_check = true,
-        // Para o HiveMQ, como ele usa certificados de CAs conhecidas, 
-        // em versões recentes do ESP-IDF você pode precisar anexar o certificado root
-        // ou usar a opção de transporte seguro.
         .session.last_will.topic = "game/status",
         .session.last_will.msg = "offline",
         .session.last_will.qos = 1,
         .session.last_will.retain = true,
     };
-
     client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
