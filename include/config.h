@@ -1,0 +1,11 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define AP_WIFI_SSID "DAISY-XYZ"
+#define AP_WIFI_PASSWORD "12345678"
+#define HTTP_PORT 80
+#define DEVICE_NAME "ESP32-XYZ"
+#define STA_WIFI_SSID "MEO-7DD690"
+#define STA_WIFI_PASSWORD "0f3f122dbb"
+
+#endif // CONFIG_H
