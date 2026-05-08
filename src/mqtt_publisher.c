@@ -2,8 +2,10 @@
 #include "esp_log.h"
 #include "semaphore_manager.h"
 
-#define MQTT_BROKER_URI "mqtt://192.168.1.233"
-#define MQTT_TOPIC     "game/control"
+#define MQTT_BROKER_URI "mqtts://SEU_HOST_AQUI.hivemq.cloud" 
+#define MQTT_PORT       8883
+#define MQTT_USER       "KinectV"
+#define MQTT_PASS       "Qwe12345"
 
 
 esp_mqtt_client_handle_t client;
@@ -14,7 +16,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI("MQTT", "Conectado ao broker");
-            break;
+​            break;
 
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGW("MQTT", "Desconectado");
@@ -32,6 +34,18 @@ void mqtt_publisher_task(void *pvParameters)
     xSemaphoreGive(gotip);
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = MQTT_BROKER_URI,
+        .broker.address.port = MQTT_PORT,
+        .credentials.username = MQTT_USER,
+        .credentials.authentication.password = MQTT_PASS,
+        // Requisito para HiveMQ Cloud (TLS)
+        .broker.verification.skip_cert_common_name_check = true,
+        // Para o HiveMQ, como ele usa certificados de CAs conhecidas, 
+        // em versões recentes do ESP-IDF você pode precisar anexar o certificado root
+        // ou usar a opção de transporte seguro.
+        .session.last_will.topic = "game/status",
+        .session.last_will.msg = "offline",
+        .session.last_will.qos = 1,
+        .session.last_will.retain = true,
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
