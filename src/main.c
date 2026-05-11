@@ -5,7 +5,6 @@
 #include "nvs_flash.h"
 #include "esp_err.h"
 #include "wifi_provider.h"
-#include "http_server_provider.h"
 #include "buffer_manager.h"
 #include "semaphore_manager.h"
 #include "mqtt_publisher.h"
@@ -30,7 +29,6 @@ void app_main() {
     buffer_init();
     wifi_provider_init();
     vTaskDelay(pdMS_TO_TICKS(1000)); 
-    http_server_provider_init();
     init_buttons();
     //initial wifi configuration
     wifi_sta_config_t std = {
@@ -39,8 +37,7 @@ void app_main() {
     };
 
     BaseType_t sta_ok = xQueueSend(sta_credenticial, &std, pdMS_TO_TICKS(100));
-
-
+    
     xTaskCreate(
         wifi_provider_task,
         "wifi_provider",
@@ -50,21 +47,13 @@ void app_main() {
         NULL
     );
     xTaskCreate(
-        http_server_provider_task,
-        "https_provider",
+        mqtt_publisher_task,
+        "mqtt_publisher",
         8192,
         NULL,
         5,
         NULL
-    );
-    xTaskCreate(
-        mqtt_publisher_task,
-        "mqtt_publisher",
-        4096,
-        NULL,
-        5,
-        NULL
-    );
+    );//*/
     xTaskCreate(
         button_handler_task, 
         "btn_task", 

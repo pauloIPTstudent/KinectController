@@ -51,30 +51,16 @@ void wifi_provider_init(){
 
     ESP_LOGI(TAG, "Buscando Crendencias do WiFi");
     bool has_credentials = load_wifi_credentials(ssid, sizeof(ssid), password, sizeof(password));
-    if (has_credentials) {
-        ESP_LOGI(TAG, "Credenciais encontradas: SSID=%s", ssid);
-
-        wifi_sta_config_t sta_config = {
+    wifi_sta_config_t sta_config = {
             .ssid = "",
             .password = ""
-        };
-        wifi_ap_config_t ap_config = {
-            .ssid = "DAISY-XYZ",
-            .password = "12345678",
-            .max_connection = 1
-        };
+    };
+    if (has_credentials) {
+        ESP_LOGI(TAG, "Credenciais encontradas: SSID=%s", ssid);
         strncpy((char*)sta_config.ssid, ssid, sizeof(sta_config.ssid));
         strncpy((char*)sta_config.password, password, sizeof(sta_config.password));
-        wifi_start_ap_sta(&sta_config, &ap_config);
-
-    }else{
-        wifi_ap_config_t ap_config = {
-            .ssid = "DAISY-XYZ",
-            .password = "12345678",
-            .max_connection = 1
-        };
-        wifi_start_ap(&ap_config);
     }
+    wifi_start_sta(&sta_config);
 }
 
 void wifi_provider_task(void *pvParameters){

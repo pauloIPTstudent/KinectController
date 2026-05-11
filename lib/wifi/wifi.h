@@ -2,7 +2,7 @@
 #define WIFI_H
 
 #include <stdbool.h>
-#include "esp_wifi.h"  // Agora isso inclui a definição correta para wifi_sta_config_t e wifi_ap_config_t
+#include "esp_wifi.h" 
 #include "esp_log.h"
 
 typedef void (*wifi_sta_connected_cb_t)(void);

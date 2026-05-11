@@ -7,6 +7,7 @@
 #include "button_manager.h"
 #include "buffer_manager.h"
 #include "mqtt_client.h"
+#include "esp_timer.h" 
 static const char *TAG = "BUTTON_TASK";
 extern esp_mqtt_client_handle_t client;
 // Fila interna para comunicar a Interrupção (ISR) com a Task
@@ -23,7 +24,7 @@ static const button_map_t buttons[] = {
     {BUTTON_UP,    "ArrowUp"},
     {BUTTON_DOWN,  "ArrowDown"},
     {BUTTON_X,     "X"},
-    {BUTTON_B,     "B"}
+    {BUTTON_B,     "A"}
 };
 
 // Handler de Interrupção (ISR) - Roda na RAM para velocidade máxima
@@ -35,6 +36,7 @@ static void IRAM_ATTR gpio_isr_handler(void* arg) {
 // A Task que você vai iniciar no seu main
 void button_handler_task(void* arg) {
     uint32_t io_num;
+    static int64_t last_time = 0;
     char json_payload[64];
 
     ESP_LOGI(TAG, "Aguardando eventos de botão para envio MQTT...");
@@ -43,7 +45,13 @@ void button_handler_task(void* arg) {
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
             
             // Debounce
-            vTaskDelay(pdMS_TO_TICKS(20)); 
+            int64_t now = esp_timer_get_time() / 1000; // Tempo atual em milisegundos
+
+            // Se o evento ocorreu em menos de 50ms desde o último, descarta
+            if ((now - last_time) < 50) {
+                continue; 
+            }
+            last_time = now;
 
             int level = gpio_get_level(io_num);
             const char* action = (level == 0) ? "press" : "release";
@@ -60,14 +68,15 @@ void button_handler_task(void* arg) {
             snprintf(json_payload, sizeof(json_payload), 
                      "{\"button\":\"%s\",\"action\":\"%s\"}", 
                      btn_name, action);
-
+            
+            ESP_LOGI(TAG, "Button pressed: %s, Level: %d, MQTT Payload: %s", btn_name, level, json_payload);
             // Verifica se o cliente MQTT está pronto antes de publicar
             if (client != NULL) {
                 int msg_id = esp_mqtt_client_publish(client, "game/control", json_payload, 0, 1, 0);
                 ESP_LOGD(TAG, "MQTT Sent: %s (id=%d)", json_payload, msg_id);
             } else {
                 ESP_LOGW(TAG, "MQTT client não inicializado. Ignorando clique.");
-            }
+            }//*/
         }
     }
 }

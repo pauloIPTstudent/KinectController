@@ -1,8 +1,9 @@
 #include "mqtt_client.h"
 #include "esp_log.h"
 #include "semaphore_manager.h"
+#include "esp_crt_bundle.h"
 
-#define MQTT_BROKER_URI "mqtts://SEU_HOST_AQUI.hivemq.cloud" 
+#define MQTT_BROKER_URI "mqtts://752c1a993df64a28b80430f7f0948d2f.s1.eu.hivemq.cloud:8883" 
 #define MQTT_PORT       8883
 #define MQTT_USER       "KinectV"
 #define MQTT_PASS       "Qwe12345"
@@ -33,16 +34,18 @@ void mqtt_publisher_task(void *pvParameters)
     xSemaphoreGive(gotip);
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = MQTT_BROKER_URI,
-        .broker.address.port = MQTT_PORT,
         .credentials.username = MQTT_USER,
         .credentials.authentication.password = MQTT_PASS,
-        .broker.verification.skip_cert_common_name_check = true,
-        .session.last_will.topic = "game/status",
-        .session.last_will.msg = "offline",
-        .session.last_will.qos = 1,
-        .session.last_will.retain = true,
+
+        //CERT TLS
+        .broker.verification.crt_bundle_attach = esp_crt_bundle_attach,
     };
     client = esp_mqtt_client_init(&mqtt_cfg);
+    if (client == NULL) {
+        ESP_LOGE("MQTT", "Falha ao inicializar o cliente (memória insuficiente ou config inválida)");
+        vTaskDelete(NULL);
+        return;
+    }
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
 
