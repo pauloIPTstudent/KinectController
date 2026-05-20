@@ -23,7 +23,7 @@ void app_main() {
         ESP_LOGI(TAG, "Esperando 5 segundos...");
         vTaskDelay(pdMS_TO_TICKS(5000)); 
     }
-    /*// Inicializa NVS
+    // Inicializa NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
