@@ -18,11 +18,8 @@ static const char *TAG = "MAIN_APP";
 void app_main() {
     ESP_LOGI(TAG, "Inicializando sistema...");
     vTaskDelay(pdMS_TO_TICKS(5000)); 
-    ota_helper_switch_and_reboot(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
-    while(true) {
-        ESP_LOGI(TAG, "Esperando 5 segundos...");
-        vTaskDelay(pdMS_TO_TICKS(5000)); 
-    }
+    //ota_helper_switch_and_reboot(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
+    
     // Inicializa NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -31,7 +28,6 @@ void app_main() {
     }
     
     ESP_ERROR_CHECK(ret);
-    //ota_helper_switch_and_reboot();
     semaphore_init();
     buffer_init();
     wifi_provider_init();
