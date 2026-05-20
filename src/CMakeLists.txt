@@ -1,6 +1,8 @@
 # This file was automatically generated for projects
 # without default 'CMakeLists.txt' file.
 
-FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/src/*.*)
+FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/src/${PASTA_PROJETO}/*.*)
 
-idf_component_register(SRCS ${app_sources})
+idf_component_register( SRCS ${app_sources} 
+                        INCLUDE_DIRS "${PASTA_PROJETO}"
+                        REQUIRES bt)

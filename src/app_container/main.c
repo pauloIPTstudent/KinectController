@@ -8,23 +8,30 @@
 #include "buffer_manager.h"
 #include "semaphore_manager.h"
 #include "mqtt_publisher.h"
+#include "ota_helper.h"
 #include "config.h"
 #include "cJSON.h"
 #include "button_manager.h"
 
-static const char *TAG = "MAIN";
+static const char *TAG = "MAIN_APP";
 
 void app_main() {
     ESP_LOGI(TAG, "Inicializando sistema...");
-
-    // Inicializa NVS
+    vTaskDelay(pdMS_TO_TICKS(5000)); 
+    ota_helper_switch_and_reboot(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
+    while(true) {
+        ESP_LOGI(TAG, "Esperando 5 segundos...");
+        vTaskDelay(pdMS_TO_TICKS(5000)); 
+    }
+    /*// Inicializa NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
+    
     ESP_ERROR_CHECK(ret);
-
+    //ota_helper_switch_and_reboot();
     semaphore_init();
     buffer_init();
     wifi_provider_init();
@@ -53,7 +60,7 @@ void app_main() {
         NULL,
         5,
         NULL
-    );//*/
+    );
     xTaskCreate(
         button_handler_task, 
         "btn_task", 
@@ -61,5 +68,5 @@ void app_main() {
         NULL, 
         10, 
         NULL
-    );
+    );//*/
 }
