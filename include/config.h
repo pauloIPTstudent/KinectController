@@ -9,4 +9,8 @@
 #define STA_WIFI_PASSWORD "7368bc98ad"
 //MEO-E020E0 ; MEO-7DD690
 //7368bc98ad ; 0f3f122dbb
+
+#define FREQ_HZ          18
+#define WINDOW_DURATION  2
+#define WINDOW_SIZE      (FREQ_HZ * WINDOW_DURATION) // 36
 #endif // CONFIG_H

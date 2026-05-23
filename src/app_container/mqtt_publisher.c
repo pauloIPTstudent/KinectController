@@ -51,3 +51,13 @@ void mqtt_publisher_task(void *pvParameters)
 
     vTaskDelete(NULL);
 }
+
+/*
+extern esp_mqtt_client_handle_t client;
+if (client != NULL) {
+    int msg_id = esp_mqtt_client_publish(client, "game/control", json_payload, 0, 1, 0);
+    ESP_LOGD(TAG, "MQTT Sent: %s (id=%d)", json_payload, msg_id);
+} else {
+    ESP_LOGW(TAG, "MQTT client não inicializado. Ignorando clique.");
+}
+*/

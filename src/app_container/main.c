@@ -7,14 +7,15 @@
 #include "wifi_provider.h"
 #include "buffer_manager.h"
 #include "semaphore_manager.h"
-#include "mqtt_publisher.h"
 #include "ota_helper.h"
 #include "config.h"
 #include "cJSON.h"
-#include "button_manager.h"
+#include "i2cdev.h"
+#include "app_container/ble_server.h"
+#include "app_container/mpu6050.h"
 
 static const char *TAG = "MAIN_APP";
-
+#define ADDR MPU6050_I2C_ADDRESS_LOW
 void app_main() {
     ESP_LOGI(TAG, "Inicializando sistema...");
     vTaskDelay(pdMS_TO_TICKS(5000)); 
@@ -26,22 +27,29 @@ void app_main() {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
-    
+    // Inicializa I2C
+    esp_err_t err = i2cdev_init();
+    if (err != ESP_OK) {
+        ESP_LOGE("MAIN_APP", "Falha ao inicializar o i2cdev!");
+        return;
+    }
+    //init_ble();
+
     ESP_ERROR_CHECK(ret);
     semaphore_init();
     buffer_init();
-    wifi_provider_init();
+    //wifi_provider_init();
+
     vTaskDelay(pdMS_TO_TICKS(1000)); 
-    init_buttons();
     //initial wifi configuration
-    wifi_sta_config_t std = {
+    /*wifi_sta_config_t std = {
         .ssid = STA_WIFI_SSID,
         .password = STA_WIFI_PASSWORD
     };
 
-    BaseType_t sta_ok = xQueueSend(sta_credenticial, &std, pdMS_TO_TICKS(100));
+    BaseType_t sta_ok = xQueueSend(sta_credenticial, &std, pdMS_TO_TICKS(100));*/
     
-    xTaskCreate(
+    /*xTaskCreate(
         wifi_provider_task,
         "wifi_provider",
         8192, //4096
@@ -49,20 +57,20 @@ void app_main() {
         5,
         NULL
     );
-    xTaskCreate(
-        mqtt_publisher_task,
-        "mqtt_publisher",
-        8192,
-        NULL,
-        5,
-        NULL
-    );
-    xTaskCreate(
-        button_handler_task, 
-        "btn_task", 
+    xTaskCreate(ble_host_task, 
+        "nimble_host_task", 
         4096, 
         NULL, 
-        10, 
+        5, 
         NULL
-    );//*/
+    );*/
+    xTaskCreate(mpu6050task, 
+        "mpu6050_task", 
+        4096, 
+        NULL, 
+        5, 
+        NULL
+    );
+
+    //*/
 }

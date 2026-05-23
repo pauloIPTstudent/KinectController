@@ -5,7 +5,7 @@
 #include "nvs_flash.h"
 #include "esp_err.h"
 #include "esp_ota_ops.h"
-#include "ble_server.h"
+#include "loader_container/ble_server.h"
 
 static const char *TAG = "MAIN_LOADER";
 
