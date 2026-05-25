@@ -38,8 +38,9 @@ extern esp_mqtt_client_handle_t client;
 
 // LIMIARES DE CALIBRAÇÃO (Física da queda)
 // Nota: 1.0 representa a gravidade normal da Terra (1g)
-#define THRESHOLD_FREE_FALL  0.4f   // Abaixo de 0.4g indica perda de sustentação / queda livre
-#define THRESHOLD_IMPACT     2.8f   // Acima de 2.8g indica uma colisão severa (impacto no chão)
+// Altere os Limiares de Calibração no topo do arquivo para valores relativos ao seu log:
+#define THRESHOLD_IMPACT     1.60f   // Ajustado: Se parado dá 0.10, um impacto real passará de 0.55
+#define THRESHOLD_FREE_FALL  0.03f   // Ajustado: Perda quase total de sinal em microgravidade
 
 // Nova abordagem baseada em regras físicas
 // Certifique-se de que a variável global do seu cliente MQTT está acessível aqui.
@@ -47,24 +48,22 @@ extern esp_mqtt_client_handle_t client;
 
 void processar_janela(imu_sample_t *dados, int tamanho)
 {
-   bool detectou_queda_livre = false;
     bool detectou_impacto = false;
     float max_svm_encontrado = 0.0f;
-    float min_svm_encontrado = 1.0f;
+    float min_svm_encontrado = 99.0f;
 
     for (int i = 0; i < tamanho; i++) {
-        float ax_g = dados[i].ax / 9.80665f;
-        float ay_g = dados[i].ay / 9.80665f;
-        float az_g = dados[i].az / 9.80665f;
+        float ax = dados[i].ax;
+        float ay = dados[i].ay;
+        float az = dados[i].az;
 
-        float svm = sqrtf((ax_g * ax_g) + (ay_g * ay_g) + (az_g * az_g));
+        // Calcular a magnitude vetorial (SVM) direta
+        float svm = sqrtf((ax * ax) + (ay * ay) + (az * az));
 
         if (svm > max_svm_encontrado) max_svm_encontrado = svm;
         if (svm < min_svm_encontrado) min_svm_encontrado = svm;
 
-        if (svm < THRESHOLD_FREE_FALL) {
-            detectou_queda_livre = true;
-        }
+        // Regra Única: Ultrapassou o limite do pico de impacto estabelecido
         if (svm > THRESHOLD_IMPACT) {
             detectou_impacto = true;
         }
@@ -72,34 +71,29 @@ void processar_janela(imu_sample_t *dados, int tamanho)
 
     ESP_LOGI(TAG, "Janela analisada -> Pico Max: %.2fg | Pico Min: %.2fg", max_svm_encontrado, min_svm_encontrado);
 
-    // VEREDITO DA QUEDA
-    
-    if (detectou_queda_livre && detectou_impacto) {
-        ESP_LOGW(TAG, "🚨 [ALERTA] QUEDA DETETADA POR REGRAS FÍSICAS!");
+    // VEREDITO DA QUEDA (Regra direta focada no impacto)
+    if (detectou_impacto) {
+        ESP_LOGW(TAG, "🚨 [ALERTA] IMPACTO FORTE / QUEDA DETETADA!");
 
-        // 1. Acender o LED integrado (Nível lógico Alto/1)
+        // 1. Liga o pino do LED externo
         gpio_set_level(BLINK_GPIO, 1);
 
-        // 2. Notificar o aplicativo Android via Bluetooth Low Energy
-        // Passamos o valor '1' que o seu aplicativo já está programado para receber
-        ble_notificar_queda(); // Ajuste os parâmetros conforme a assinatura da sua função BLE
+        // 2. Dispara o Bluetooth Low Energy para a aplicação Android
+        ble_notificar_queda(); 
 
-        // 3. Publicar no Broker MQTT
-        // Nota: O payload do MQTT precisa de ser uma string ou array de caracteres, por isso usamos "9"
+        // 3. Publica a string "9" no Broker MQTT
         if (client != NULL) {
             int msg_id = esp_mqtt_client_publish(client, "status", "9", 0, 1, 0);
             ESP_LOGI(TAG, "MQTT publicado com sucesso, msg_id=%d", msg_id);
         } else {
             ESP_LOGE(TAG, "Erro: Cliente MQTT não inicializado.");
         }
-        
     } else {
         ESP_LOGI(TAG, "✅ Movimento normal seguro.");
-        
-        // Opcional: Apagar o LED se o movimento voltar ao normal e não for uma queda
         gpio_set_level(BLINK_GPIO, 0);
     }
 }
+
 
 void mpu6050task(void *param) 
 {
