@@ -1,14 +1,29 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"  // Header que define os Semáforos e UBaseType_t
-#include "esp_log.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
 #include "nvs_flash.h"
-#include "esp_err.h"
-#include "esp_ota_ops.h"
-#include "loader_container/ble_server.h"
+#include "esp_log.h"
 
-static const char *TAG = "MAIN_LOADER";
+#define TAG "LOADER_MAIN"
 
+
+// Callback de Eventos do SPP mapeado conforme o teu enum 'esp_spp_cb_event_t'
+
+
+void app_main(void)
+{
+
+    // 1. Inicializa o armazenamento NVS
+    while(true){
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        ESP_LOGI(TAG, "Hello from loader...");
+    }
+}
+
+/*
 void passar_comando_para_controller(void) {
     ESP_LOGI(TAG, "A procurar a partição do Controller (ota_0)...");
     
@@ -35,21 +50,4 @@ void passar_comando_para_controller(void) {
     }
 }
 
-void app_main(void) {
-    ESP_LOGI(TAG, "Inicializando sistema...");
-    ESP_LOGI(TAG, "Contagem regressiva");
-    // Inicializa NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    inicializar_ble_completo();
-    //while(1) {
-        ESP_LOGI(TAG, "Log from Loader");
-        vTaskDelay(pdMS_TO_TICKS(1000)); 
-    //}
-    
-    // Chama a função para alternar o boot
-    //passar_comando_para_controller();
-}
+*/

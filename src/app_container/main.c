@@ -11,6 +11,7 @@
 #include "config.h"
 #include "cJSON.h"
 #include "i2cdev.h"
+#include "app_container/mqtt_publisher.h"
 #include "app_container/ble_server.h"
 #include "app_container/mpu6050.h"
 
@@ -33,23 +34,35 @@ void app_main() {
         ESP_LOGE("MAIN_APP", "Falha ao inicializar o i2cdev!");
         return;
     }
-    //init_ble();
-
+    init_ble();
+    //init build in led giopins
+    gpio_reset_pin(BLINK_GPIO);
+    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
+    
     ESP_ERROR_CHECK(ret);
     semaphore_init();
     buffer_init();
-    //wifi_provider_init();
+    wifi_provider_init();
 
     vTaskDelay(pdMS_TO_TICKS(1000)); 
     //initial wifi configuration
-    /*wifi_sta_config_t std = {
+    wifi_sta_config_t std = {
         .ssid = STA_WIFI_SSID,
         .password = STA_WIFI_PASSWORD
     };
 
-    BaseType_t sta_ok = xQueueSend(sta_credenticial, &std, pdMS_TO_TICKS(100));*/
+    BaseType_t sta_ok = xQueueSend(sta_credenticial, &std, pdMS_TO_TICKS(100));
     
-    /*xTaskCreate(
+   /**/
+    xTaskCreate(ble_host_task, 
+        "nimble_host_task", 
+        4096, 
+        NULL, 
+        5, 
+        NULL
+    );
+    
+    xTaskCreate(
         wifi_provider_task,
         "wifi_provider",
         8192, //4096
@@ -57,13 +70,15 @@ void app_main() {
         5,
         NULL
     );
-    xTaskCreate(ble_host_task, 
-        "nimble_host_task", 
-        4096, 
-        NULL, 
-        5, 
+    
+    xTaskCreate(
+        mqtt_publisher_task,
+        "mqtt_publisher",
+        8192,
+        NULL,
+        5,
         NULL
-    );*/
+    );
     xTaskCreate(mpu6050task, 
         "mpu6050_task", 
         4096, 
@@ -71,6 +86,10 @@ void app_main() {
         5, 
         NULL
     );
-
-    //*/
+    /**/
+    while(true)
+    {
+        vTaskDelay(pdMS_TO_TICKS(3000)); // Evita que a task termine
+        //ble_notificar_queda(); // Exemplo: Notificar queda a cada 1 segundo (apenas para teste)
+    }
 }

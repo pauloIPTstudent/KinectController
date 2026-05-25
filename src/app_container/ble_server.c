@@ -1,6 +1,10 @@
 #include <string.h>
 #include <stdio.h>
 #include "esp_log.h"
+#include "cJSON.h"
+#include "wifi_provider.h"
+#include "buffer_manager.h"
+#include "wifi.h"
 
 // Headers de inicialização do NimBLE
 #include "nimble/nimble_port.h"
@@ -15,11 +19,12 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
-static const char* TAG = "BLE_LOADER";
+static const char* TAG = "BLE_MAIN";
 
-// --- VARIÁVEIS GLOBAIS CORRIGIDAS ---
+// --- VARIÁVEIS GLOBAIS ---
 static uint8_t ble_addr_type;
-static uint16_t gatt_status_chr_val_handle = 0; // Armazena o ID para envio de notificações
+static uint16_t gatt_status_chr_val_handle = 0; 
+static uint16_t atual_conn_handle = 0xFFFF; // NOVO: Armazena o ID da conexão ativa (0xFFFF = desconectado)
 
 // Proclamação da função de eventos GAP para o compilador não reclamar da ordem
 static int ble_gap_event(struct ble_gap_event *event, void *arg);
@@ -45,12 +50,36 @@ static int gatt_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle,
 {
     if (ble_uuid_cmp(ctxt->chr->uuid, &chr_credentials_uuid.u) == 0) {
         if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
-            char recebido[64] = {0};
+            char recebido[256] = {0}; // Aumentei para 128 para garantir que cabe o JSON inteiro confortavelmente
             uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
             
             if (len < sizeof(recebido)) {
                 ble_hs_mbuf_to_flat(ctxt->om, recebido, len, NULL);
-                ESP_LOGI(TAG, "Credenciais recebidas do telemóvel: %s", recebido);
+                ESP_LOGI(TAG, "JSON Recebido: %s", recebido);
+
+                // --- Início do Parse do JSON ---
+                cJSON *json = cJSON_Parse(recebido);
+                if (json == NULL) {
+                    ESP_LOGE(TAG, "Erro: JSON inválido!");
+                    return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN; // Retorna erro pro app BLE
+                }
+
+                cJSON *ssid_item = cJSON_GetObjectItemCaseSensitive(json, "ssid");
+                cJSON *pass_item = cJSON_GetObjectItemCaseSensitive(json, "password");
+
+                if (cJSON_IsString(ssid_item) && cJSON_IsString(pass_item)) {
+                    ESP_LOGI(TAG, "SSID Extraído: %s", ssid_item->valuestring);
+                    ESP_LOGI(TAG, "PASS Extraído: [PROTEGIDO]");
+                    wifi_sta_config_t std;
+                    memset(&std, 0, sizeof(wifi_sta_config_t));
+                    strncpy((char *)std.ssid, ssid_item->valuestring, sizeof(std.ssid) - 1);
+                    strncpy((char *)std.password, pass_item->valuestring, sizeof(std.password) - 1);
+
+                    BaseType_t sta_ok = xQueueSend(sta_credenticial, &std, pdMS_TO_TICKS(100));
+                } else {
+                    ESP_LOGE(TAG, "JSON não contém 'ssid' ou 'password' no formato correto.");
+                }
+                cJSON_Delete(json); // IMPORTANTE: Sempre limpe a memória do cJSON
             }
             return 0;
         }
@@ -59,7 +88,7 @@ static int gatt_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle,
     // NOVA LÓGICA: Detetar quando o telemóvel escreve na característica Trigger
     if (ble_uuid_cmp(ctxt->chr->uuid, &chr_trigger_uuid.u) == 0) {
         if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
-            char comando[32] = {0};
+            char comando[64] = {0};
             uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
             
             if (len < sizeof(comando)) {
@@ -131,41 +160,121 @@ void ble_enviar_estado_evento(const char* novo_estado) {
     }
 }
 
+
+// --- FUNÇÃO PARA DISPARAR ALERTA DE QUEDA (1 BYTE) ---
+
+// ... seu código intermédio permanece igual ...
+
+// --- FUNÇÃO PARA DISPARAR ALERTA DE QUEDA ATUALIZADA ---
+void ble_notificar_queda(void) 
+{
+    // 1. Verifica se temos um handle de conexão válido salvo
+    if (atual_conn_handle == 0xFFFF) {
+        ESP_LOGW(TAG, "Nenhum dispositivo conectado via GAP para receber notificações.");
+        return;
+    }
+
+    if (gatt_status_chr_val_handle == 0) {
+        ESP_LOGW(TAG, "Handle da característica inválido.");
+        return;
+    }
+
+    uint8_t payload_queda = 1;
+
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(&payload_queda, sizeof(payload_queda));
+    if (om != NULL) {
+        // CORREÇÃO: Passamos 'atual_conn_handle' em vez de BLE_HS_CONN_HANDLE_NONE
+        int rc = ble_gatts_notify_custom(atual_conn_handle, gatt_status_chr_val_handle, om);
+        if (rc == 0) {
+            ESP_LOGI(TAG, "Notificação de QUEDA enviada com sucesso! [1 byte]");
+        } else {
+            ESP_LOGE(TAG, "Erro ao enviar notificação BLE: %d", rc);
+        }
+    }
+}
+
 // --- 5. ADVERTISEMENT ---
 void ble_app_advertise(void) {
     struct ble_gap_adv_params adv_params;
     struct ble_hs_adv_fields fields;
+    struct ble_hs_adv_fields rsp_fields; // NOVO: Campos para a resposta de scan
     int rc;
 
+    // ==========================================
+    // 1. PACOTE PRINCIPAL (Advertising Data)
+    // ==========================================
     memset(&fields, 0, sizeof(fields));
-    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
     
-    const char *name = "ESP32_Config";
-    fields.name = (uint8_t *)name;
-    fields.name_len = strlen(name);
-    fields.name_is_complete = 1;
+    // Flags obrigatórias
+    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+
+    // Injetar o UUID de 128-bits aqui (Filtro do Android vai detetar na hora)
+    fields.uuids128 = (ble_uuid128_t *)&gatt_set_credentials_service_uuid;
+    fields.num_uuids128 = 1;
+    fields.uuids128_is_complete = 1;
 
     rc = ble_gap_adv_set_fields(&fields);
-    if (rc != 0) { ESP_LOGE(TAG, "Erro adv fields: %d", rc); return; }
+    if (rc != 0) { 
+        ESP_LOGE(TAG, "Erro ao definir campos principais do adv: %d", rc); 
+        return; 
+    }
 
+    // ==========================================
+    // 2. PACOTE SECUNDÁRIO (Scan Response Data)
+    // ==========================================
+    memset(&rsp_fields, 0, sizeof(rsp_fields));
+
+    // Colocamos o Nome completo aqui sem medo de estourar o limite
+    const char *name = "ESP32_Config";
+    rsp_fields.name = (uint8_t *)name;
+    rsp_fields.name_len = strlen(name);
+    rsp_fields.name_is_complete = 1;
+
+    rc = ble_gap_adv_rsp_set_fields(&rsp_fields);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "Erro ao definir campos do Scan Response: %d", rc);
+        return;
+    }
+
+    // ==========================================
+    // 3. INICIAR ANÚNCIO
+    // ==========================================
     memset(&adv_params, 0, sizeof(adv_params));
-    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
-    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
+    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND; // Permite conexões
+    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN; // Modo descobrível geral
 
-    // CORREÇÃO: Passamos a função ble_gap_event como o callback oficial do GAP
     rc = ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event, NULL);
-    if (rc != 0) { ESP_LOGE(TAG, "Erro ao iniciar adv: %d", rc); }
+    if (rc != 0) { 
+        ESP_LOGE(TAG, "Erro ao iniciar adv: %d", rc); 
+    } else {
+        ESP_LOGI(TAG, "Anúncio BLE iniciado com sucesso (Serviço + Scan Response)!");
+    }
 }
+
+
+
+
+
+
 
 static int ble_gap_event(struct ble_gap_event *event, void *arg) {
     switch (event->type) {
         case BLE_GAP_EVENT_CONNECT:
-            ESP_LOGI(TAG, "Dispositivo Conectado! Status: %d", event->connect.status);
+            if (event->connect.status == 0) {
+                ESP_LOGI(TAG, "Dispositivo Conectado com sucesso! Conn Handle: %d", event->connect.conn_handle);
+                atual_conn_handle = event->connect.conn_handle; // SALVA O HANDLE DA CONEXÃO ATIVA
+            } else {
+                ESP_LOGE(TAG, "Falha na conexão; reiniciando anúncio. Status: %d", event->connect.status);
+                ble_app_advertise();
+            }
             break;
+
         case BLE_GAP_EVENT_DISCONNECT:
-            ESP_LOGI(TAG, "Dispositivo Desconectado! Reiniciando Advertisement...");
+            ESP_LOGI(TAG, "Dispositivo Desconectado! Limpando Handle e Reiniciando Advertisement...");
+            atual_conn_handle = 0xFFFF; // LIMPA O HANDLE COM VALOR DE DESCONEXÃO
             ble_app_advertise(); 
             break;
+            
         default:
             break;
     }

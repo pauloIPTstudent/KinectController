@@ -7,10 +7,14 @@
 #define DEVICE_NAME "ESP32-XYZ"
 #define STA_WIFI_SSID "MEO-E020E0"
 #define STA_WIFI_PASSWORD "7368bc98ad"
-//MEO-E020E0 ; MEO-7DD690
-//7368bc98ad ; 0f3f122dbb
+//MEO-E020E0 ; MEO-7DD690 ; MEO-3BBA50
+//7368bc98ad ; 0f3f122dbb ; f66dcd699e
 
 #define FREQ_HZ          18
 #define WINDOW_DURATION  2
 #define WINDOW_SIZE      (FREQ_HZ * WINDOW_DURATION) // 36
+
+
+
+#define BLINK_GPIO 18
 #endif // CONFIG_H
